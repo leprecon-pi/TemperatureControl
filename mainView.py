@@ -23,7 +23,7 @@ class UIWindow(object):
         self.tempcontrolDock = HeaterControl()
         self.cathodeBoxDock = CathodeBoxTemperature()
         self.logDock = LogDock()
-        [i.setStretch(*(10, 20)) for i in [self.controlDock, self.logDock, self.tempcontrolDock]]
+        [i.setStretch(*(10, 20)) for i in [self.controlDock, self.logDock, self.tempcontrolDock,self.cathodeBoxDock]]
         self.controlDock.setStretch(*(10, 300))
         self.graph = Graph()
         self.scaleDock = PlotScaleDock()

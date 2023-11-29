@@ -252,7 +252,7 @@ class MAX6675(Worker):
         
 
 
-class NI9211_0(Worker):
+class NI9211(Worker):
     sigAbortHeater = QtCore.pyqtSignal()
     sigAbortThermocouple = QtCore.pyqtSignal()
 
@@ -324,6 +324,7 @@ class NI9211_0(Worker):
         Read NI-9211 sensor output
         """
         self.temperature = self.thermocouple.temperature
+        self.cathodeBoxTemperature = self.thermocouple.cathodeBoxTemperature
 
     def send_processed_data_to_main_thread(self):
         """
@@ -344,7 +345,7 @@ class NI9211_0(Worker):
         now = datetime.datetime.now()
         dSec = (now - self.__startTime).total_seconds()
         # ["date", "time", "T", "PresetT"]
-        new_row = pd.DataFrame(np.atleast_2d([now, dSec, self.temperature, self.temperature_setpoint,self.qmssig]), columns=self.columns)
+        new_row = pd.DataFrame(np.atleast_2d([now, dSec, self.temperature, self.temperature_setpoint,self.qmssig,self.cathodeBoxTemperature]), columns=self.columns)
         self.data = pd.concat([self.data, new_row], ignore_index=True)
 
     def calculate_average(self):
@@ -423,126 +424,7 @@ class NI9211_0(Worker):
         self.__sumE = integral
         pass
 
-class NI9211_1(Worker):
-    sigAbortThermocouple = QtCore.pyqtSignal()
-
-    def __init__(self, sensor_name, app, startTime, config):
-        super().__init__(sensor_name, app, startTime, config)
-        self.__app = app
-        self.sensor_name = sensor_name
-        self.__startTime = startTime
-        self.config = config
-        self.__abort = False
-
-    @QtCore.pyqtSlot()
-    def abort(self):
-        message = "Worker thread {} aborting acquisition".format(self.sensor_name)
-        # self.send_message.emit(message)
-        print(message)
-        self.__abort = True
-
-    def setTempWorker(self, presetTemp: int):
-        """
-        needs pigpio daemon
-        """
-        self.columns = ["date", "time", "T"]
-        self.data = pd.DataFrame(columns=self.columns)
-        self.temperature_setpoint = presetTemp
-        self.sampling_rate = self.config["NI9211"]["Tc1"]["Sampling Rate"]
-        self.sampling = 1/ self.sampling_rate
-
-
-    @QtCore.pyqtSlot()
-    def start(self):
-        """
-        Start data acquisition
-        """
-        self.acquisition_loop()
-
-
-    def init_thermocouple(self):
-        """
-        Select MAX6675 sensor on the SPI
-        Need to start PIGPIO daemon
-        """
-        self.thermocouple = Thermocouple(self.__app,channel="cDAQ1Mod1/ai1")
-        self.thread_thermocouple = QtCore.QThread()
-        self.thread_thermocouple.setObjectName("thermocouple")
-        self.thermocouple.moveToThread(self.thread_thermocouple)
-        self.thread_thermocouple.started.connect(self.thermocouple.work)
-        self.sigAbortThermocouple.connect(self.thermocouple.setAbort)
-        self.thread_thermocouple.start()
-        
-
-    def read_thermocouple(self):
-        """
-        Read NI-9211 sensor output
-        """
-        self.temperature = self.thermocouple.temperature
-
-    def send_processed_data_to_main_thread(self):
-        """
-        Send processed data to main.py
-        """
-        self.send_step_data.emit([self.data, self.sensor_name])
-
-    def clear_datasets(self):
-        """
-        Remove data from temporary dataframes
-        """
-        self.data = self.data.iloc[0:0]
-
-    def update_dataframe(self):
-        """
-        Append new reading to dataframe
-        """
-        now = datetime.datetime.now()
-        dSec = (now - self.__startTime).total_seconds()
-        # ["date", "time", "T", "PresetT"]
-        new_row = pd.DataFrame(np.atleast_2d([now, dSec, self.temperature]), columns=self.columns)
-        self.data = pd.concat([self.data, new_row], ignore_index=True)
-
-
-    @QtCore.pyqtSlot()
-    def acquisition_loop(self):
-        """
-        Temperature acquisition and Feedback Control loop
-        """
-        self.init_thermocouple()
-
-        step = 0
-
-        while not (self.__abort):
-            time.sleep(self.sampling)
-            self.read_thermocouple()
-            self.update_dataframe()
-
-            if step % (STEP - 1) == 0 and step != 0:
-                self.temperature_control()
-                self.send_processed_data_to_main_thread()
-                self.clear_datasets()
-                step = 0
-            else:
-                step += 1
-            self.__app.processEvents()
-        else:
-            # ABORTING
-            self.send_processed_data_to_main_thread()
-            self.sigAbortThermocouple.emit()
-            self.__sumE = 0
-            
-
-            self.thread_thermocouple.quit()
-            self.thread_thermocouple.wait()
-
-
-        self.thread_thermocouple = None
-        self.sigDone.emit(self.sensor_name)
-
     
-
-
-
 
 if __name__ == "__main__":
     pass

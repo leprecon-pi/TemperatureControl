@@ -15,12 +15,7 @@ Temperature Columns:
   - "T"
   - "PresetT"
   - "Qms signal"
-
-Cathode Temperature Columns:
-  - "date"
-  - "time"
-  - "T"
-  - "Qms signal"
+  - "Carhode Box T"
 
 
 # ================================================
