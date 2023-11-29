@@ -423,7 +423,6 @@ class NI9211(Worker):
         self.__exE = e
         self.__sumE = integral
         pass
-
     
 
 if __name__ == "__main__":
