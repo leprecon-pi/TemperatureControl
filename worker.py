@@ -411,7 +411,7 @@ class NI9211(Worker):
         if integral < -0.5:
             integral = 0
 
-        if e > 100: # TODO Adjustment
+        if e > 20: # TODO Adjustment
             self.membrane_heater.duty = 1
         elif e >= 0:
             output = Kp * e + Ki * integral + Kd * derivative
