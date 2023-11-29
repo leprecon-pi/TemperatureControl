@@ -15,11 +15,12 @@ except:
 ### Write down fundamental program to communicate with NI-DAQ (NI-9211)
 class Thermocouple(QtCore.QObject):
 
-    def __init__(self, app):
+    def __init__(self, app,channel = "cDAQ1Mod1/ai0"):
         super().__init__()
         self.app = app
         self.init_ni()
         self.abort = False
+        self.channel = channel
 
     def init_ni(self):
         """Types of Thermocouple"""
@@ -42,7 +43,7 @@ class Thermocouple(QtCore.QObject):
     def work(self):
         self.__setThread()
         with nidaqmx.Task() as task:
-            task.ai_channels.add_ai_thrmcpl_chan("cDAQ1Mod1/ai0",thermocouple_type = nidaqmx.constants.ThermocoupleType(self.tc_type),cjc_source=nidaqmx.constants.CJCSource(10200))
+            task.ai_channels.add_ai_thrmcpl_chan(self.channel,thermocouple_type = nidaqmx.constants.ThermocoupleType(self.tc_type),cjc_source=nidaqmx.constants.CJCSource(10200))
             task.timing.cfg_samp_clk_timing(rate=1000)
             while not self.abort:
                 self.temperature = task.read(number_of_samples_per_channel=1)[0]

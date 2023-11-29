@@ -4,7 +4,7 @@ import pandas as pd
 from PyQt5 import QtGui, QtCore, QtWidgets
 
 from mainView import UIWindow
-from worker import Worker, NI9211
+from worker import Worker, NI9211_0,NI9211_1
 
 
 import readsettings
@@ -194,10 +194,12 @@ class MainWidget(QtCore.QObject, UIWindow):
         self.log_message("<font color='#1cad47'>Starting</font> acquisition", htmltag="h2")
         self.savepaths = {}
         self.datadict = {
-            "NI9211": pd.DataFrame(columns=self.config["Temperature Columns"]),
+            "NI9211_0": pd.DataFrame(columns=self.config["Temperature Columns"]),
+            "NI9211_1": pd.DataFrame(columns=self.config["Cathode Temperature Columns"]),
         }
         self.newdata = {
-            "NI9211": pd.DataFrame(columns=self.config["Temperature Columns"]),
+            "NI9211_0": pd.DataFrame(columns=self.config["Temperature Columns"]),
+            "NI9211_1": pd.DataFrame(columns=self.config["Cathode Temperature Columns"]),
         }
 
         self.__workers_done = 0
@@ -212,12 +214,18 @@ class MainWidget(QtCore.QObject, UIWindow):
         threads = {}
 
 
-        # NI9211 thermocouple sensor for Membrane temperature with PID
-        sensor_name = "NI9211"
+        # NI9211_0 thermocouple sensor for Membrane temperature with PID
+        sensor_name = "NI9211_0"
         threads[sensor_name] = QtCore.QThread()
         threads[sensor_name].setObjectName(f"{sensor_name}")
-        self.tWorker = NI9211(sensor_name, self.__app, now, self.config)
+        self.tWorker = NI9211_0(sensor_name, self.__app, now, self.config)
         self.tWorker.setTempWorker(self.__temp)
+
+        sensor_name = "NI9211_1"
+        threads[sensor_name] = QtCore.QThread()
+        threads[sensor_name].setObjectName(f"{sensor_name}")
+        self.ctWorker = NI9211_1(sensor_name, self.__app, now, self.config)
+        self.ctWorker.setTempWorker(self.__temp)
 
 
         workers = {worker.sensor_name: worker for worker in [self.tWorker]}
@@ -269,7 +277,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         self.connect_worker_signals(worker)
 
         # if worker.sensor_name != "DAC8532" or worker.sensor_name != "MCP4725":
-        if worker.sensor_name == "NI9211":
+        if worker.sensor_name == "NI9211_0":
             self.create_file(worker.sensor_name)
             self.log_message(
                 f"<font size=4 color='blue'>{worker.sensor_name}</font> savepath:<br> {self.savepaths[worker.sensor_name]}",
@@ -289,7 +297,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         #     )
         #     with open(self.savepaths[sensor_name], "w") as f:
         #         f.writelines(self.generate_header_temperature())
-        if sensor_name == "NI9211":
+        if sensor_name == "NI9211_0":
             self.savepaths[sensor_name] = os.path.join(
                 os.path.abspath(self.datapath), f"cu_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             )
@@ -333,7 +341,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         worker.send_message.connect(self.log_message)
         self.sigAbortWorkers.connect(worker.abort)
 
-    def update_current_values(self):
+    def update_current_values(self,sensor_name):
         """
         update current values when new signal comes
         """
@@ -341,7 +349,9 @@ class MainWidget(QtCore.QObject, UIWindow):
         # TODO: updated dislpayed valuves from dataframes
 
         self.tempcontrolDock.update_displayed_temperatures(self.__temp, f"{self.currentvalues['T']:.0f}")
-        self.controlDock.gaugeT.update_value(self.currentvalues["T"])
+        if sensor_name == "NI9211_0":
+            self.controlDock.gaugeT.update_value(self.currentvalues["T"])
+
 
 
     # Mark: connecting slots with threads
@@ -357,7 +367,7 @@ class MainWidget(QtCore.QObject, UIWindow):
 
         sensor_name = result[-1]
 
-        if sensor_name == "NI9211":
+        if sensor_name == "NI9211_0":
             # [self.data, self.sensor_name]
             self.newdata[sensor_name] = result[0]
             self.append_data(sensor_name)
@@ -366,16 +376,31 @@ class MainWidget(QtCore.QObject, UIWindow):
             # TODO: update to self.newdata[sensor_name]['T'].mean()
             self.currentvalues["T"] = self.datadict[sensor_name].iloc[-3:]["T"].mean()
             self.update_plots(sensor_name)
+        if sensor_name == "NI9211_1":
+            # [self.data, self.sensor_name]
+            self.newdata[sensor_name] = result[0]
+            self.append_data(sensor_name)
+            self.save_data(sensor_name)
+            # here 3 is number of data points recieved from worker.
+            # TODO: update to self.newdata[sensor_name]['T'].mean()
+            # self.currentvalues["T"] = self.datadict[sensor_name].iloc[-3:]["T"].mean()
+            # self.update_plots(sensor_name)
 
 
-        self.update_current_values()
+        self.update_current_values(sensor_name)
 
     def calculate_skip_points(self, l, noskip=5000):
         return 1 if l < noskip else l // noskip + 1
 
     def update_plots(self, sensor_name):
         """"""
-        if sensor_name == "NI9211":
+        if sensor_name == "NI9211_0":
+            df = self.select_data_to_plot(sensor_name)
+            time = df["time"].values.astype(float)
+            temperature = df["T"].values.astype(float)
+            skip = self.calculate_skip_points(time.shape[0])
+            self.valueTPlot.setData(time[::skip], temperature[::skip])
+        if sensor_name == "NI9211_1":
             df = self.select_data_to_plot(sensor_name)
             time = df["time"].values.astype(float)
             temperature = df["T"].values.astype(float)
