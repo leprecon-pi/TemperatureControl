@@ -6,6 +6,7 @@ from PyQt5 import QtGui, QtCore, QtWidgets
 from mainView import UIWindow
 from worker import Worker, NI9211_0,NI9211_1
 
+from ft232h import QmsSigSync
 
 import readsettings
 from striphtmltags import strip_tags
@@ -58,6 +59,12 @@ class MainWidget(QtCore.QObject, UIWindow):
         self.graph.tempPl.setYRange(0, 320, 0)
 
         self.tWorker = None
+
+        self.qmssigreader = QmsSigSync()
+
+        self.qmssig = False
+        self.controlDock.explamp.setValue(self.qmssig)
+
 
         self.update_plot_timewindow()
 
@@ -220,6 +227,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         threads[sensor_name].setObjectName(f"{sensor_name}")
         self.tWorker = NI9211_0(sensor_name, self.__app, now, self.config)
         self.tWorker.setTempWorker(self.__temp)
+        self.tWorker.qmssig = int(self.qmssigreader.get_sig())
 
         sensor_name = "NI9211_1"
         threads[sensor_name] = QtCore.QThread()
@@ -230,7 +238,6 @@ class MainWidget(QtCore.QObject, UIWindow):
 
         workers = {worker.sensor_name: worker for worker in [self.tWorker]}
         self.sensor_names = list(workers)
-        print(self.sensor_names)
 
         [self.start_thread(workers[s], threads[s]) for s in self.sensor_names]
 
@@ -299,35 +306,22 @@ class MainWidget(QtCore.QObject, UIWindow):
         #         f.writelines(self.generate_header_temperature())
         if sensor_name == "NI9211_0":
             self.savepaths[sensor_name] = os.path.join(
-                os.path.abspath(self.datapath), f"cu_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                os.path.abspath(self.datapath), f"temp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             )
             with open(self.savepaths[sensor_name], "w") as f:
                 f.writelines(self.generate_header_temperature())
 
-    def generate_header_tc(self):
-        """
-        Generage ADC header
-        """
-        return [
-            "# Title , Control Unit NI9211 signals\n",
-            f"# Date , {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
-            f"# Columns , {', '.join(self.config['ADC Column Names'])}\n",
-            f"# Signals , {', '.join(self.config['ADC Signal Names'])}\n",
-            f"# Channels , {', '.join([str(i) for i in self.config['ADC Channel Numbers']])}\n",
-            "# For converted signals '_c' is added\n",
-            "#\n",
-            "# [Data]\n",
-        ]
 
     def generate_header_temperature(self):
         """
         Generage Teperature header
         """
         return [
-            "# Control Unit Temperature Control signals\n",
-            f"# Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
-            f"# Columns: {', '.join(self.config['Temperature Columns'])}\n",
-            f"# Heater Pin: {self.config['FT232H']['Heater Output']['Pin']}\n",
+            "# Title , Control Unit Temperature Control signals\n",
+            f"# Date, {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+            f"# Columns , {', '.join(self.config['Temperature Columns'])}\n",
+            f"# Heater Pin , {self.config['FT232H']['Heater Output']['Pin']}\n",
+            f"# Qms sync Pin , {self.config['FT232H']['Sync Input']['Pin']}\n"
             "#\n",
             "# [Data]\n",
         ]
@@ -349,9 +343,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         # TODO: updated dislpayed valuves from dataframes
 
         self.tempcontrolDock.update_displayed_temperatures(self.__temp, f"{self.currentvalues['T']:.0f}")
-        if sensor_name == "NI9211_0":
-            self.controlDock.gaugeT.update_value(self.currentvalues["T"])
-
+        self.controlDock.gaugeT.update_value(self.currentvalues["T"])
 
 
     # Mark: connecting slots with threads
