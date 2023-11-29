@@ -236,7 +236,7 @@ class MainWidget(QtCore.QObject, UIWindow):
         self.ctWorker.setTempWorker(self.__temp)
 
 
-        workers = {worker.sensor_name: worker for worker in [self.tWorker]}
+        workers = {worker.sensor_name: worker for worker in [self.tWorker,self.ctWorker]}
         self.sensor_names = list(workers)
 
         [self.start_thread(workers[s], threads[s]) for s in self.sensor_names]
@@ -289,6 +289,11 @@ class MainWidget(QtCore.QObject, UIWindow):
             self.log_message(
                 f"<font size=4 color='blue'>{worker.sensor_name}</font> savepath:<br> {self.savepaths[worker.sensor_name]}",
             )
+        if worker.sensor_name == "NI9211_1":
+            self.create_file(worker.sensor_name)
+            self.log_message(
+                f"<font size=4 color='blue'>{worker.sensor_name}</font> savepath:<br> {self.savepaths[worker.sensor_name]}",
+            )
 
         thread.started.connect(worker.start)
         thread.start()
@@ -307,6 +312,12 @@ class MainWidget(QtCore.QObject, UIWindow):
         if sensor_name == "NI9211_0":
             self.savepaths[sensor_name] = os.path.join(
                 os.path.abspath(self.datapath), f"temp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            )
+            with open(self.savepaths[sensor_name], "w") as f:
+                f.writelines(self.generate_header_temperature())
+        if sensor_name == "NI9211_1":
+            self.savepaths[sensor_name] = os.path.join(
+                os.path.abspath(self.datapath), f"cathode_box_temp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
             )
             with open(self.savepaths[sensor_name], "w") as f:
                 f.writelines(self.generate_header_temperature())
