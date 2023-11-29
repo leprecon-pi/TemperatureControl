@@ -518,7 +518,6 @@ class NI9211_1(Worker):
             self.update_dataframe()
 
             if step % (STEP - 1) == 0 and step != 0:
-                self.temperature_control()
                 self.send_processed_data_to_main_thread()
                 self.clear_datasets()
                 step = 0
